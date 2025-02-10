@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"go-wellxs/internal/models"
 	"log"
 	"os"
 	"strconv"
@@ -11,6 +12,8 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/joho/godotenv/autoload"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
 // Service represents a service that interacts with a database.
@@ -29,13 +32,21 @@ type service struct {
 }
 
 var (
-	dbname     = os.Getenv("BLUEPRINT_DB_DATABASE")
-	password   = os.Getenv("BLUEPRINT_DB_PASSWORD")
-	username   = os.Getenv("BLUEPRINT_DB_USERNAME")
-	port       = os.Getenv("BLUEPRINT_DB_PORT")
-	host       = os.Getenv("BLUEPRINT_DB_HOST")
+	dbname     = getEnvOrDefault("BLUEPRINT_DB_DATABASE", "go_wellxs")
+	password   = getEnvOrDefault("BLUEPRINT_DB_PASSWORD", "zaq1@CDE3")
+	username   = getEnvOrDefault("BLUEPRINT_DB_USERNAME", "root")
+	port       = getEnvOrDefault("BLUEPRINT_DB_PORT", "3306")
+	host       = getEnvOrDefault("BLUEPRINT_DB_HOST", "localhost")
 	dbInstance *service
+	DB         *gorm.DB
 )
+
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
 
 func New() Service {
 	// Reuse Connection
@@ -117,4 +128,50 @@ func (s *service) Health() map[string]string {
 func (s *service) Close() error {
 	log.Printf("Disconnected from database: %s", dbname)
 	return s.db.Close()
+}
+
+func Connect() error {
+	// Add error checking for required environment variables
+	if password == "" {
+		return fmt.Errorf("database password is required")
+	}
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		username,
+		password,
+		host,
+		port,
+		dbname,
+	)
+
+	log.Printf("Attempting to connect to database at %s:%s", host, port)
+
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Auto Migrate the schemas
+	if err := db.AutoMigrate(
+		&models.User{},
+		&models.Address{},
+		&models.Profile{},
+	); err != nil {
+		return fmt.Errorf("failed to migrate database: %w", err)
+	}
+
+	log.Printf("Successfully connected to database %s and migrated schemas", dbname)
+
+	DB = db
+	return nil
+}
+
+func MigrateDB() error {
+	// Get all tables that need to be migrated
+	if err := DB.AutoMigrate(&models.User{}); err != nil {
+		return fmt.Errorf("failed to migrate database: %w", err)
+	}
+	
+	log.Printf("Database migration completed successfully")
+	return nil
 }

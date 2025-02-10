@@ -1,64 +1,47 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"go-wellxs/internal/server"
 	"log"
 	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
-	"time"
 
-	_ "github.com/joho/godotenv/autoload"
+	"go-wellxs/internal/database"
+	"go-wellxs/internal/server"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
 )
 
-func gracefulShutdown(fiberServer *server.FiberServer, done chan bool) {
-	// Create context that listens for the interrupt signal from the OS.
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	// Listen for the interrupt signal.
-	<-ctx.Done()
-
-	log.Println("shutting down gracefully, press Ctrl+C again to force")
-
-	// The context is used to inform the server it has 5 seconds to finish
-	// the request it is currently handling
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := fiberServer.ShutdownWithContext(ctx); err != nil {
-		log.Printf("Server forced to shutdown with error: %v", err)
+func main() {
+	// Load .env file
+	if err := godotenv.Load(".env"); err != nil {
+		log.Printf("Warning: .env file not found or error loading it: %v", err)
 	}
 
-	log.Println("Server exiting")
+	// Connect to database
+	if err := database.Connect(); err != nil {
+		log.Fatal(err)
+	}
 
-	// Notify the main goroutine that the shutdown is complete
-	done <- true
-}
+	// Run migrations
+	if err := database.MigrateDB(); err != nil {
+		log.Fatal(err)
+	}
 
-func main() {
+	// Create Fiber app
+	app := fiber.New()
 
-	server := server.New()
+	// Setup routes
+	server.SetupRoutes(app)
 
-	server.RegisterFiberRoutes()
+	// Get port from env
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
 
-	// Create a done channel to signal when the shutdown is complete
-	done := make(chan bool, 1)
-
-	go func() {
-		port, _ := strconv.Atoi(os.Getenv("PORT"))
-		err := server.Listen(fmt.Sprintf(":%d", port))
-		if err != nil {
-			panic(fmt.Sprintf("http server error: %s", err))
-		}
-	}()
-
-	// Run graceful shutdown in a separate goroutine
-	go gracefulShutdown(server, done)
-
-	// Wait for the graceful shutdown to complete
-	<-done
-	log.Println("Graceful shutdown complete.")
+	// Start server
+	log.Printf("Server is running on http://localhost:%s", port)
+	if err := app.Listen(":" + port); err != nil {
+		log.Fatal(err)
+	}
 }
