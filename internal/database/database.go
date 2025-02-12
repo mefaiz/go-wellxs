@@ -32,20 +32,20 @@ type service struct {
 }
 
 var (
-	dbname     = getEnvOrDefault("BLUEPRINT_DB_DATABASE", "go_wellxs")
-	password   = getEnvOrDefault("BLUEPRINT_DB_PASSWORD", "zaq1@CDE3")
-	username   = getEnvOrDefault("BLUEPRINT_DB_USERNAME", "root")
-	port       = getEnvOrDefault("BLUEPRINT_DB_PORT", "3306")
-	host       = getEnvOrDefault("BLUEPRINT_DB_HOST", "localhost")
+	dbname     = getEnv("BLUEPRINT_DB_DATABASE")
+	password   = getEnv("BLUEPRINT_DB_PASSWORD")
+	username   = getEnv("BLUEPRINT_DB_USERNAME")
+	port       = getEnv("BLUEPRINT_DB_PORT")
+	host       = getEnv("BLUEPRINT_DB_HOST")
 	dbInstance *service
 	DB         *gorm.DB
 )
 
-func getEnvOrDefault(key, defaultValue string) string {
+func getEnv(key string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
-	return defaultValue
+	return ""
 }
 
 func New() Service {
