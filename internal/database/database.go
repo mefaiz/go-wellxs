@@ -156,6 +156,9 @@ func Connect() error {
 		&models.User{},
 		&models.Address{},
 		&models.Profile{},
+		&models.Subscription{},
+		&models.UserSubscription{},
+		&models.Faq{},
 	); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
